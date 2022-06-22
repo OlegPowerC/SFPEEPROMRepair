@@ -13,6 +13,15 @@ import (
 	"strings"
 )
 
+const (
+	NOTSUPPORTED_IND = 0
+	FINISAR_IND      = 1
+	METHODE_IND      = 2
+
+	FINISAR_IDENT_STRING = "finisar"
+	METHODE_IDENT_STRING = "methode"
+)
+
 func sffcmpl(hb byte) (dt string) {
 	switch hb {
 	case 00:
@@ -63,6 +72,12 @@ func main() {
 
 	OutFileName := ""
 
+	//Finisar Salt
+	var key []byte
+	FinisarSalt := []byte{0x8D, 0xDA, 0xE6, 0xA4, 0x6E, 0xC9, 0xDE, 0xF6, 0x10, 0x0B, 0xF1, 0x85, 0x05, 0x9C, 0x3D, 0xAB}
+	MethodeSalt := []byte{0x4A, 0xF8, 0x67, 0x16, 0xED, 0x1E, 0x2F, 0x34, 0x7C, 0xA1, 0x3C, 0x99, 0x78, 0xAD, 0x8C, 0xA0}
+	sn := []byte{0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20}
+
 	flag.StringVar(&InFile, "in", "", "please, provide input filename")
 	flag.StringVar(&serial, "sn", "", "please, provide serival number")
 	flag.BoolVar(&RepairFlag, "r", false, "flag for repair dump, make file with 'rep' suffix or file with name provide by -mf flag")
@@ -89,10 +104,6 @@ func main() {
 			OutFileName = fmt.Sprintf("%s_%s.bin", ModfInFile, "rep")
 		}
 	}
-
-	//Finisar Salt
-	key := []byte{0x8D, 0xDA, 0xE6, 0xA4, 0x6E, 0xC9, 0xDE, 0xF6, 0x10, 0x0B, 0xF1, 0x85, 0x05, 0x9C, 0x3D, 0xAB}
-	sn := []byte{0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20}
 
 	var md5_src_str []byte
 	md5_src_str = make([]byte, 49)
@@ -127,7 +138,6 @@ func main() {
 	}
 
 	factbuftocrc32 := mbuf[96 : 96+28]
-	//fmt.Println(hex.EncodeToString(buftocrc32))
 
 	factcrc32ch := crc32.ChecksumIEEE(factbuftocrc32)
 	factcrc32buf := make([]byte, 4)
@@ -152,6 +162,28 @@ func main() {
 	fmt.Println("Readed CRC:", hex.EncodeToString(ReadedCRC))
 	if !reflect.DeepEqual(factcrc32buf, ReadedCRC) {
 		fmt.Println("ERROR! Wrong CRC in input file")
+	}
+	Ven := strings.ToLower(strings.TrimSpace(VendorName))
+	VenInd := NOTSUPPORTED_IND
+	if strings.Contains(Ven, FINISAR_IDENT_STRING) {
+		VenInd = FINISAR_IND
+	}
+	if strings.Contains(Ven, METHODE_IDENT_STRING) {
+		VenInd = METHODE_IND
+	}
+
+	switch VenInd {
+	case FINISAR_IND:
+		key = FinisarSalt
+		fmt.Println("Will be use Finisar salt")
+		break
+	case METHODE_IND:
+		key = MethodeSalt
+		fmt.Println("Will be use Method salt")
+		break
+	default:
+		key = FinisarSalt
+		fmt.Println("Vendor not supported, will be use Finisar salt")
 	}
 
 	if RepairFlag {
@@ -192,18 +224,14 @@ func main() {
 		copy(md5_src_str[17:17+16], mbuf[68:68+16])
 		copy(md5_src_str[17:17+16], mbuf[68:68+16])
 		copy(md5_src_str[33:], key[:])
-		//fmt.Println(md5_src_str)
 		hashbytes := md5.Sum(md5_src_str)
-		//fmt.Println(hashbytes)
 		copy(mbuf[99:99+16], hashbytes[:])
 
 		buftocrc32 := mbuf[96 : 96+28]
-		//fmt.Println(hex.EncodeToString(buftocrc32))
 
 		crc32ch := crc32.ChecksumIEEE(buftocrc32)
 		crc32buf := make([]byte, 4)
 		binary.LittleEndian.PutUint32(crc32buf, crc32ch)
-		//fmt.Println(hex.EncodeToString(crc32buf))
 
 		copy(mbuf[124:124+4], crc32buf[:])
 		fmt.Println("Write file:", OutFileName)
