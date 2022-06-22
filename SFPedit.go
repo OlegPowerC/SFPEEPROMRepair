@@ -163,6 +163,7 @@ func main() {
 	if !reflect.DeepEqual(factcrc32buf, ReadedCRC) {
 		fmt.Println("ERROR! Wrong CRC in input file")
 	}
+
 	Ven := strings.ToLower(strings.TrimSpace(VendorName))
 	VenInd := NOTSUPPORTED_IND
 	if strings.Contains(Ven, FINISAR_IDENT_STRING) {
@@ -184,6 +185,19 @@ func main() {
 	default:
 		key = FinisarSalt
 		fmt.Println("Vendor not supported, will be use Finisar salt")
+	}
+
+	//Make MD5 with salt
+	md5_src_str[0] = mbuf[98]
+	copy(md5_src_str[1:1+16], mbuf[20:20+16])
+	copy(md5_src_str[17:17+16], mbuf[68:68+16])
+	copy(md5_src_str[17:17+16], mbuf[68:68+16])
+	copy(md5_src_str[33:], key[:])
+	hashbytes := md5.Sum(md5_src_str)
+	fmt.Println("Calculated hash:", hex.EncodeToString(hashbytes[:]))
+	fmt.Println("Readed hash", hex.EncodeToString(mbuf[99:99+16]))
+	if !reflect.DeepEqual(hashbytes[:], mbuf[99:99+16]) {
+		fmt.Println("ERROR! Wrong hash in input file")
 	}
 
 	if RepairFlag {
@@ -218,13 +232,6 @@ func main() {
 		}
 		mbuf[95] = byte(sum22)
 
-		//Make MD5 with salt data (Finisar)
-		md5_src_str[0] = mbuf[98]
-		copy(md5_src_str[1:1+16], mbuf[20:20+16])
-		copy(md5_src_str[17:17+16], mbuf[68:68+16])
-		copy(md5_src_str[17:17+16], mbuf[68:68+16])
-		copy(md5_src_str[33:], key[:])
-		hashbytes := md5.Sum(md5_src_str)
 		copy(mbuf[99:99+16], hashbytes[:])
 
 		buftocrc32 := mbuf[96 : 96+28]
@@ -232,7 +239,6 @@ func main() {
 		crc32ch := crc32.ChecksumIEEE(buftocrc32)
 		crc32buf := make([]byte, 4)
 		binary.LittleEndian.PutUint32(crc32buf, crc32ch)
-
 		copy(mbuf[124:124+4], crc32buf[:])
 		fmt.Println("Write file:", OutFileName)
 		ioutil.WriteFile(OutFileName, mbuf, 0644)
