@@ -138,7 +138,6 @@ func main() {
 	}
 
 	factbuftocrc32 := mbuf[96 : 96+28]
-
 	factcrc32ch := crc32.ChecksumIEEE(factbuftocrc32)
 	factcrc32buf := make([]byte, 4)
 	binary.LittleEndian.PutUint32(factcrc32buf, factcrc32ch)
@@ -200,6 +199,31 @@ func main() {
 		fmt.Println("ERROR! Wrong hash in input file")
 	}
 
+	//Checksum base
+	cc_base := 0
+	for a := 0; a < 63; a++ {
+		cc_base += int(mbuf[a])
+	}
+	cc_base_byte := byte(cc_base)
+	fmt.Println("CC_Base calculated:", hex.EncodeToString([]byte{cc_base_byte}))
+	fmt.Println("CC_Base readed:", string(hex.EncodeToString([]byte{mbuf[63]})))
+	if cc_base_byte != mbuf[63] {
+		fmt.Println("ERROR! Wrong CC_Base in input file")
+	}
+	mbuf[63] = cc_base_byte
+
+	//Checksum
+	CC_ext_calculated := 0
+	for a := 64; a < 95; a++ {
+		CC_ext_calculated += int(mbuf[a])
+	}
+	CC_ext_readed := int(mbuf[95])
+	fmt.Println("CC_Ext calculated:", hex.EncodeToString([]byte{byte(CC_ext_calculated)}))
+	fmt.Println("CC_Ext readed:", string(hex.EncodeToString([]byte{byte(CC_ext_readed)})))
+	if byte(CC_ext_calculated) != byte(CC_ext_readed) {
+		fmt.Println("ERROR! Wrong CC_Ext in input file")
+	}
+
 	if RepairFlag {
 		serial = SerialNumberFacts
 		MakeFileFlag = true
@@ -215,16 +239,8 @@ func main() {
 	}
 
 	if MakeFileFlag {
-		//Cechsum base
-		cc_base := 0
-		for a := 0; a < 63; a++ {
-			cc_base += int(mbuf[a])
-		}
 
-		cc_base_byte := byte(cc_base)
-		mbuf[63] = cc_base_byte
-
-		//Checksumm
+		//Checksum
 		sum22 := 0
 		copy(mbuf[68:68+16], bsnfc)
 		for a := 64; a < 95; a++ {
