@@ -248,7 +248,14 @@ func main() {
 		}
 		mbuf[95] = byte(sum22)
 
-		copy(mbuf[99:99+16], hashbytes[:])
+		//Make MD5 with salt
+		md5_src_str[0] = mbuf[98]
+		copy(md5_src_str[1:1+16], mbuf[20:20+16])
+		copy(md5_src_str[17:17+16], mbuf[68:68+16])
+		copy(md5_src_str[17:17+16], mbuf[68:68+16])
+		copy(md5_src_str[33:], key[:])
+		hashbytesafterfillbuffer := md5.Sum(md5_src_str)
+		copy(mbuf[99:99+16], hashbytesafterfillbuffer[:])
 
 		buftocrc32 := mbuf[96 : 96+28]
 
