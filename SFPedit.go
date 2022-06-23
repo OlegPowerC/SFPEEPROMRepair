@@ -14,13 +14,63 @@ import (
 )
 
 const (
-	NOTSUPPORTED_IND = 0
-	FINISAR_IND      = 1
-	METHODE_IND      = 2
+	NOTSUPPORTED_IND = 0x00
+	FINISAR_IND      = 0x02
+	METHODE_IND      = 0x0E
 
 	FINISAR_IDENT_STRING = "finisar"
 	METHODE_IDENT_STRING = "methode"
 )
+
+/*
+type SPDData struct {
+	//Name				type		offsett in byffer
+	MdIdent				byte		//00
+	MdExtIdent			byte		//01
+	MdConnector			byte		//02
+	MdTransceiver		[8]byte		//03-10
+	MdEncoding			byte		//11
+	MdSignalingRate		byte		//12
+	MdRateIdent			byte		//13
+	MdLengthSMFKm		byte		//14
+	MdLengthSMF100m		byte		//15
+	MdLengthMMFOM210m	byte		//16
+	MdLengthMMFOM110m	byte		//17
+	MdLengthMMFOM410m	byte		//18
+	MdLengthMMFOM310m	byte		//19
+	MdVendorName		[16]byte	//20-35
+	MdTransceiver2		byte		//36
+	MdVendorOUI			[3]byte		//37-39
+	MdVendorPN			[16]byte	//40-55
+	MdVendorRev			[4]byte		//56-59
+	MdWavelength		[2]byte		//60-61
+	MdFCSpeed			byte		//62
+	mdCC_BASE			byte		//63
+
+	MdOption			[2]byte		//64-65
+	MdSignalRateMax		byte		//66
+	MdSignalRateMin		byte		//67
+	MdVendorSN			[16]byte	//68-83
+	MdDateCode			[8]byte		//84-91
+	MdDiagType			byte		//92
+	MdEnhOptions		byte		//93
+	MdSFF8472Complaince	byte		//94
+	MdCC_EXT			byte		//95
+
+	MdVSVendorID		byte		//98
+
+}
+*/
+
+/*
+func FillMDData(buffer []byte)(err error,MdData SPDData){
+	if len(buffer) < 128 {
+		return fmt.Errorf("Too short buffer:%d bytes",len(buffer)),nil
+	}
+	MdData.MdIdent
+}
+
+*/
 
 func sffcmpl(hb byte) (dt string) {
 	switch hb {
@@ -64,6 +114,24 @@ func diagnosticmonitortype_detail(hb byte) (dt string) {
 	return rstring
 }
 
+func ComputeHash(VenId byte, VendorName []byte, SerialNumber []byte, VendorKey []byte) (Err error, Hash [16]byte) {
+	//Считаем MD5 от строки из:
+	//Идентификатор производителя, адрес 0x62(98)	- 1 байт
+	//Имя производителя, адрес 0x14(20)-0x23(35)	- 16 байт
+	//Серийный номер, адрес 0x44(68)-0x53(83)		- 16 байт
+	if len(VendorName) != 16 || len(SerialNumber) != 16 || len(VendorKey) != 16 {
+		return fmt.Errorf("Error in arguments length"), Hash
+	}
+	var md5_src_str []byte
+	md5_src_str = make([]byte, 49)
+
+	md5_src_str[0] = VenId
+	copy(md5_src_str[1:1+16], VendorName[:])
+	copy(md5_src_str[17:17+16], SerialNumber[:])
+	copy(md5_src_str[33:], VendorKey[:])
+	return nil, md5.Sum(md5_src_str)
+}
+
 func main() {
 	var InFile string
 	var serial string
@@ -104,9 +172,6 @@ func main() {
 			OutFileName = fmt.Sprintf("%s_%s.bin", ModfInFile, "rep")
 		}
 	}
-
-	var md5_src_str []byte
-	md5_src_str = make([]byte, 49)
 
 	mbuf, err := ioutil.ReadFile(InFile)
 	if err != nil {
@@ -163,16 +228,10 @@ func main() {
 		fmt.Println("ERROR! Wrong CRC in input file")
 	}
 
-	Ven := strings.ToLower(strings.TrimSpace(VendorName))
-	VenInd := NOTSUPPORTED_IND
-	if strings.Contains(Ven, FINISAR_IDENT_STRING) {
-		VenInd = FINISAR_IND
-	}
-	if strings.Contains(Ven, METHODE_IDENT_STRING) {
-		VenInd = METHODE_IND
-	}
+	//Идентификатор производителя - адрес 0x62. Извесные нам: 0x02 - Finisar, 0x0E - Methode
+	Ven := uint(mbuf[0x62])
 
-	switch VenInd {
+	switch Ven {
 	case FINISAR_IND:
 		key = FinisarSalt
 		fmt.Println("Will be use Finisar salt")
@@ -183,16 +242,11 @@ func main() {
 		break
 	default:
 		key = FinisarSalt
-		fmt.Println("Vendor not supported, will be use Finisar salt")
+		fmt.Println("Vendor not supported by this software, will be use Finisar salt")
 	}
 
 	//Make MD5 with salt
-	md5_src_str[0] = mbuf[98]
-	copy(md5_src_str[1:1+16], mbuf[20:20+16])
-	copy(md5_src_str[17:17+16], mbuf[68:68+16])
-	copy(md5_src_str[17:17+16], mbuf[68:68+16])
-	copy(md5_src_str[33:], key[:])
-	hashbytes := md5.Sum(md5_src_str)
+	_, hashbytes := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
 	fmt.Println("Calculated hash:", hex.EncodeToString(hashbytes[:]))
 	fmt.Println("Readed hash", hex.EncodeToString(mbuf[99:99+16]))
 	if !reflect.DeepEqual(hashbytes[:], mbuf[99:99+16]) {
@@ -249,16 +303,10 @@ func main() {
 		mbuf[95] = byte(sum22)
 
 		//Make MD5 with salt
-		md5_src_str[0] = mbuf[98]
-		copy(md5_src_str[1:1+16], mbuf[20:20+16])
-		copy(md5_src_str[17:17+16], mbuf[68:68+16])
-		copy(md5_src_str[17:17+16], mbuf[68:68+16])
-		copy(md5_src_str[33:], key[:])
-		hashbytesafterfillbuffer := md5.Sum(md5_src_str)
+		_, hashbytesafterfillbuffer := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
 		copy(mbuf[99:99+16], hashbytesafterfillbuffer[:])
 
 		buftocrc32 := mbuf[96 : 96+28]
-
 		crc32ch := crc32.ChecksumIEEE(buftocrc32)
 		crc32buf := make([]byte, 4)
 		binary.LittleEndian.PutUint32(crc32buf, crc32ch)
