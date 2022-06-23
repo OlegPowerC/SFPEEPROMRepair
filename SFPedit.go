@@ -132,6 +132,7 @@ func ComputeHash(VenId byte, VendorName []byte, SerialNumber []byte, VendorKey [
 }
 
 func ComputeCRC32as_LE_4byte(buffer []byte) (err error, CDC32 []byte) {
+	//CRC32 от 28 байт с адреса 0x60 по 0x7B
 	if len(buffer) != 28 {
 		return fmt.Errorf("Too short buffer"), CDC32
 	}
