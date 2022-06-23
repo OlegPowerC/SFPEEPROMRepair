@@ -59,15 +59,6 @@ type SPDData struct {
 	MdVSVendorID		byte		//98
 
 }
-*/
-
-/*
-func FillMDData(buffer []byte)(err error,MdData SPDData){
-	if len(buffer) < 128 {
-		return fmt.Errorf("Too short buffer:%d bytes",len(buffer)),nil
-	}
-	MdData.MdIdent
-}
 
 */
 
@@ -252,7 +243,6 @@ func main() {
 		fmt.Println("Vendor not supported by this software, will be use Finisar salt")
 	}
 
-	//Make MD5 with salt
 	_, hashbytes := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
 	fmt.Println("Calculated hash:", hex.EncodeToString(hashbytes[:]))
 	fmt.Println("Readed hash", hex.EncodeToString(mbuf[99:99+16]))
@@ -273,7 +263,7 @@ func main() {
 	}
 	mbuf[63] = cc_base_byte
 
-	//Checksum
+	//Checksum ext
 	CC_ext_calculated := 0
 	for a := 64; a < 95; a++ {
 		CC_ext_calculated += int(mbuf[a])
@@ -300,7 +290,8 @@ func main() {
 	}
 
 	if MakeFileFlag {
-
+		//Меняем серийный номер
+		//Ну и конечно пересчитываем контрольные суммы и хэш
 		//Checksum
 		sum22 := 0
 		copy(mbuf[68:68+16], bsnfc)
@@ -309,7 +300,6 @@ func main() {
 		}
 		mbuf[95] = byte(sum22)
 
-		//Make MD5 with salt
 		_, hashbytesafterfillbuffer := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
 		copy(mbuf[99:99+16], hashbytesafterfillbuffer[:])
 
