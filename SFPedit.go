@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	NOTSUPPORTED_IND = 0x00
-	FINISAR_IND      = 0x02
-	METHODE_IND      = 0x0E
+	FINISAR_IND = 0x02
+	METHODE_IND = 0x0E
 
 	FINISAR_IDENT_STRING = "finisar"
 	METHODE_IDENT_STRING = "methode"
@@ -132,6 +131,16 @@ func ComputeHash(VenId byte, VendorName []byte, SerialNumber []byte, VendorKey [
 	return nil, md5.Sum(md5_src_str)
 }
 
+func ComputeCRC32as_LE_4byte(buffer []byte) (err error, CDC32 []byte) {
+	if len(buffer) != 28 {
+		return fmt.Errorf("Too short buffer"), CDC32
+	}
+	crc32ch := crc32.ChecksumIEEE(buffer)
+	crc32buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(crc32buf, crc32ch)
+	return nil, crc32buf
+}
+
 func main() {
 	var InFile string
 	var serial string
@@ -202,10 +211,7 @@ func main() {
 		SerialNumberFacts = string(mbuf[68:84])
 	}
 
-	factbuftocrc32 := mbuf[96 : 96+28]
-	factcrc32ch := crc32.ChecksumIEEE(factbuftocrc32)
-	factcrc32buf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(factcrc32buf, factcrc32ch)
+	_, factcrc32buf := ComputeCRC32as_LE_4byte(mbuf[96 : 96+28])
 
 	fmt.Println("Serial is:", SerialNumberFacts)
 	fmt.Println("Vendor name:", VendorName)
@@ -306,10 +312,8 @@ func main() {
 		_, hashbytesafterfillbuffer := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
 		copy(mbuf[99:99+16], hashbytesafterfillbuffer[:])
 
-		buftocrc32 := mbuf[96 : 96+28]
-		crc32ch := crc32.ChecksumIEEE(buftocrc32)
-		crc32buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(crc32buf, crc32ch)
+		//CRC32
+		_, crc32buf := ComputeCRC32as_LE_4byte(mbuf[96 : 96+28])
 		copy(mbuf[124:124+4], crc32buf[:])
 		fmt.Println("Write file:", OutFileName)
 		ioutil.WriteFile(OutFileName, mbuf, 0644)
