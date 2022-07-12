@@ -228,6 +228,7 @@ func main() {
 
 	//Идентификатор производителя - адрес 0x62. Извесные нам: 0x02 - Finisar, 0x0E - Methode
 	Ven := uint(mbuf[0x62])
+	VenToBe := Ven
 
 	switch Ven {
 	case FINISAR_IND:
@@ -241,6 +242,10 @@ func main() {
 	default:
 		key = FinisarSalt
 		fmt.Println("Vendor not supported by this software, will be use Finisar salt")
+		VenToBe = FINISAR_IND
+		msgven := fmt.Sprintf("Rewrite vendor ID at offsett 0x62 from:%d to:%d", Ven, VenToBe)
+		mbuf[0x62] = byte(VenToBe)
+		fmt.Println(msgven)
 	}
 
 	_, hashbytes := ComputeHash(mbuf[98], mbuf[20:20+16], mbuf[68:68+16], key)
