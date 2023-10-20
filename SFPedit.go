@@ -139,7 +139,38 @@ func main() {
 	var MakeFileFlag bool
 	var RepairFlag bool
 
+	ETHERCMPLM := make(map[int]string)
+	ETHERCMPLM[0] = "1000BASE-SX"
+	ETHERCMPLM[1] = "1000BASE-LX"
+	ETHERCMPLM[2] = "1000BASE-CX"
+	ETHERCMPLM[3] = "1000BASE-T"
+	ETHERCMPLM[4] = "100BASE-LX/LX10"
+	ETHERCMPLM[5] = "100BASE-FX"
+	ETHERCMPLM[6] = "BASE-BX10"
+	ETHERCMPLM[7] = "BASE-PX"
 	OutFileName := ""
+
+	TENGCOMPLM := make(map[int]string)
+	TENGCOMPLM[0] = "10GBASE-ER"
+	TENGCOMPLM[1] = "10GBASE-LRM"
+	TENGCOMPLM[2] = "10GBASE-LR"
+	TENGCOMPLM[3] = "10GBASE-SR"
+
+	INFINICMPLM := make(map[int]string)
+	INFINICMPLM[0] = "1X Copper Passive"
+	INFINICMPLM[1] = "1X Copper Active"
+	INFINICMPLM[2] = "LX"
+	INFINICMPLM[3] = "SX"
+
+	ENHOPTM := make(map[int]string)
+	ENHOPTM[7] = "Optional Alarm/warning flags implemented for all monitored quantities"
+	ENHOPTM[6] = "Optional soft TX_DISABLE control and monitoring implemented"
+	ENHOPTM[5] = "Optional soft TX_FAULT monitoring implemented"
+	ENHOPTM[4] = "Optional soft RX_LOS monitoring implemented"
+	ENHOPTM[3] = "Optional soft RATE_SELECT control and monitoring implemented"
+	ENHOPTM[2] = "Optional Application Select control implemented per SFF-8079"
+	ENHOPTM[1] = "Optional soft Rate Select control implemented per SFF-8431"
+	ENHOPTM[0] = "Reserved"
 
 	//Finisar Salt
 	var key []byte
@@ -181,7 +212,35 @@ func main() {
 	}
 
 	//Данные файла
+	ethercmplstr := ""
+	tengcomplstr := ""
+	infinibandcomplstr := ""
+	enhoptstr := ""
 	wavelength := binary.BigEndian.Uint16(mbuf[60:62])
+	ethercmpl := byte(mbuf[6])
+	tenandinfinicmpl := byte(mbuf[3])
+	enhopt := byte(mbuf[93])
+	var bmask byte = 0x01
+	var bmaskteng byte = 0x10
+	for i := 0; i < 8; i++ {
+		if ethercmpl&bmask == bmask {
+			ethercmplstr += ETHERCMPLM[i] + " "
+		}
+		if enhopt&bmask == bmask {
+			enhoptstr += "\r\n" + ENHOPTM[i] + " "
+		}
+		if i <= 3 {
+			if tenandinfinicmpl&bmask == bmask {
+				infinibandcomplstr += INFINICMPLM[i]
+			}
+			if tenandinfinicmpl&bmaskteng == bmaskteng {
+				tengcomplstr += TENGCOMPLM[i] + " "
+			}
+		}
+		ethercmpl = ethercmpl >> 1
+		tenandinfinicmpl = tenandinfinicmpl >> 1
+		enhopt = enhopt >> 1
+	}
 	lengthkmSM := int(mbuf[14])
 	length100mSM := int(mbuf[15])
 	wavelengthStr := fmt.Sprintf("Wavelength: %d", wavelength)
@@ -219,6 +278,13 @@ func main() {
 	fmt.Println(wavelengthStr)
 	fmt.Println(rangeF)
 	fmt.Println(rangeF100m)
+	fmt.Println("=====================================================")
+	fmt.Println("Ethernet compliance:", ethercmplstr)
+	fmt.Println("10G compliance:", tengcomplstr)
+	fmt.Println("Infiniband compliance:", infinibandcomplstr)
+	fmt.Println("=====================================================")
+	fmt.Println("Enhanced Options:", enhoptstr)
+	fmt.Println("=====================================================")
 
 	fmt.Println("Calculated CRC:", hex.EncodeToString(factcrc32buf))
 	fmt.Println("Readed CRC:", hex.EncodeToString(ReadedCRC))
